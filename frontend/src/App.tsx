@@ -7,11 +7,13 @@ import {
   ExternalLink,
   Loader2,
   ChevronRight,
-  ShieldAlert
+  ShieldAlert,
+  BarChart2
 } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { UserRepositories } from './components/UserRepositories';
+import { StatsDashboard } from './components/StatsDashboard';
 
 // Helper for Tailwind classes
 function cn(...inputs: (string | undefined | null | false)[]) {
@@ -45,6 +47,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [maxPages, setMaxPages] = useState(3);
   const [bypassCache, setBypassCache] = useState(false);
+  const [showStats, setShowStats] = useState(false);
 
   const fetchData = async (repoName: string) => {
     setLoading(true);
@@ -68,6 +71,7 @@ export default function App() {
 
       const result = await response.json();
       setData(result);
+      // Auto-show stats if we have data and stats enabled, or maybe just let user toggle
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
@@ -173,12 +177,30 @@ export default function App() {
               />
               Bypass Cache
             </label>
+
+            <div className="w-px h-4 bg-neutral-800 mx-2"></div>
+
+            <label className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors select-none">
+              <input
+                type="checkbox"
+                checked={showStats}
+                onChange={(e) => setShowStats(e.target.checked)}
+                className="w-4 h-4 rounded border-neutral-700 bg-neutral-900 focus:ring-offset-0 focus:ring-blue-500 text-blue-600"
+              />
+              <BarChart2 className="w-4 h-4" />
+              Show Stats
+            </label>
           </div>
         </section>
 
         {/* User Repositories (Only if token is present) */}
         {token && (
           <UserRepositories token={token} onSelectRepo={handleSelectRepo} />
+        )}
+
+        {/* Stats Dashboard */}
+        {showStats && data && data.items.length > 0 && (
+          <StatsDashboard prs={data.items} />
         )}
 
         {/* Error State */}

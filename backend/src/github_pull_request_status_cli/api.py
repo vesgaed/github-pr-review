@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+from .mcp_tools import get_mcp_tools, ToolDefinition
+from .mcp_tools import get_mcp_tools, ToolDefinition
 
 from .github_api_client import GitHubApiClient, GitHubAuthenticationError, GitHubRateLimitExceededError, GitHubRepositoryNotFoundError
 from .configuration import load_application_settings
@@ -15,6 +17,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
 
 # Enable CORS for frontend
 app.add_middleware(
@@ -164,3 +167,15 @@ async def list_user_repos(
     except Exception as e:
         # 401/403 are handled inside client usually, but here generic catch
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/api/agent/tools",
+    response_model=List[ToolDefinition],
+    summary="Get MCP Tools",
+    description="Returns a list of available tools in MCP (Model Context Protocol) format for AI agents.",
+    tags=["Agent"]
+)
+async def get_agent_tools():
+    return get_mcp_tools()
+
