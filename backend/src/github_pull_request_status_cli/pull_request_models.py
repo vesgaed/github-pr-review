@@ -10,12 +10,14 @@ class PullRequestSummary:
     pull_request_number: int
     title: str
     author_login: str
+    author_avatar_url: str
     html_url: str
     label_names: tuple[str, ...]
     is_draft: bool
     state: str
     created_at: datetime
     updated_at: datetime
+    body: str
 
     @staticmethod
     def _parse_github_datetime(iso_datetime_string: str) -> datetime:
@@ -35,17 +37,20 @@ class PullRequestSummary:
 
         user_payload = pull_request_payload.get("user") or {}
         author_login = str(user_payload.get("login", "")).strip() or "unknown"
+        author_avatar_url = str(user_payload.get("avatar_url", "")).strip()
 
         return cls(
             pull_request_number=int(pull_request_payload["number"]),
             title=str(pull_request_payload.get("title", "")).strip(),
             author_login=author_login,
+            author_avatar_url=author_avatar_url,
             html_url=str(pull_request_payload.get("html_url", "")).strip(),
             label_names=label_names,
             is_draft=bool(pull_request_payload.get("draft", False)),
             state=str(pull_request_payload.get("state", "")).strip() or "unknown",
             created_at=cls._parse_github_datetime(str(pull_request_payload.get("created_at", "")).strip()),
             updated_at=cls._parse_github_datetime(str(pull_request_payload.get("updated_at", "")).strip()),
+            body=str(pull_request_payload.get("body", "") or ""),
         )
 
 

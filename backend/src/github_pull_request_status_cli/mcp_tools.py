@@ -25,7 +25,12 @@ def get_mcp_tools() -> List[ToolDefinition]:
                         "type": "integer",
                         "description": "Maximum number of pages to fetch (default: 3)",
                         "default": 3
-                    }
+                    },
+                    "bypass_cache": {
+                         "type": "boolean",
+                         "description": "Set to true to force a fresh fetch from GitHub.",
+                         "default": False
+                     }
                 },
                 "required": ["repository"]
             }
