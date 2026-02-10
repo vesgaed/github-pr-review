@@ -235,7 +235,7 @@ async def summarize_pull_request(
         # Initialize Gemini Client
         try:
             from .llm_client import GeminiClient
-            gemini = GeminiClient(api_key=settings.gemini_api_key)
+            gemini = GeminiClient(api_key=settings.gemini_api_key, model_name=settings.gemini_model)
             summary = await gemini.summarize_pr(target_pr.title, target_pr.body)
             return SummaryResponse(summary=summary)
         except ValueError as e:

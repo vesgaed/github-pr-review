@@ -3,13 +3,13 @@ import os
 from typing import Optional
 
 class GeminiClient:
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, model_name: str = "gemini-1.5-flash"):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise ValueError("GEMINI_API_KEY is not set")
         
         genai.configure(api_key=self.api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model = genai.GenerativeModel(model_name)
 
     async def summarize_pr(self, title: str, body: str, diff_summary: str = "") -> str:
         prompt = f"""

@@ -15,6 +15,7 @@ class ApplicationSettings:
     cache_time_to_live_seconds: int
     http_request_timeout_seconds: float
     gemini_api_key: str
+    gemini_model: str
 
 
 def _read_environment_int(variable_name: str, default_value: int) -> int:
@@ -54,4 +55,5 @@ def load_application_settings(*, require_token: bool = True) -> ApplicationSetti
         cache_time_to_live_seconds=_read_environment_int("CACHE_TIME_TO_LIVE_SECONDS", 90),
         http_request_timeout_seconds=_read_environment_float("HTTP_REQUEST_TIMEOUT_SECONDS", 15.0),
         gemini_api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+        gemini_model=os.getenv("GEMINI_MODEL", "gemini-1.5-flash").strip(),
     )
