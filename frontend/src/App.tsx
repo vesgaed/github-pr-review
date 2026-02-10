@@ -8,7 +8,8 @@ import {
   Loader2,
   ChevronRight,
   ShieldAlert,
-  BarChart2
+  BarChart2,
+  Bot
 } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -24,12 +25,14 @@ interface PullRequest {
   number: number;
   title: string;
   author: string;
+  author_avatar: string;
   html_url: string;
   labels: string[];
   is_draft: boolean;
   state: string;
   created_at: string;
   updated_at: string;
+  body: string;
 }
 
 interface ApiResponse {
@@ -48,6 +51,10 @@ export default function App() {
   const [maxPages, setMaxPages] = useState(3);
   const [bypassCache, setBypassCache] = useState(false);
   const [showStats, setShowStats] = useState(false);
+
+  // AI Summary State
+  const [summaries, setSummaries] = useState<Record<number, string>>({});
+  const [loadingSummary, setLoadingSummary] = useState<number | null>(null);
 
   const fetchData = async (repoName: string) => {
     setLoading(true);
@@ -71,7 +78,6 @@ export default function App() {
 
       const result = await response.json();
       setData(result);
-      // Auto-show stats if we have data and stats enabled, or maybe just let user toggle
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
@@ -89,6 +95,26 @@ export default function App() {
     fetchData(repoName);
   };
 
+  const fetchSummary = async (prNumber: number) => {
+    if (summaries[prNumber]) return; // Already fetched
+    setLoadingSummary(prNumber);
+    try {
+      const params = new URLSearchParams({ repository });
+      if (token) params.append('token', token);
+
+      const res = await fetch(`/api/pr/${prNumber}/summary?${params.toString()}`);
+      if (!res.ok) throw new Error('Failed to fetch summary');
+
+      const data = await res.json();
+      setSummaries(prev => ({ ...prev, [prNumber]: data.summary }));
+    } catch (error) {
+      console.error(error);
+      setSummaries(prev => ({ ...prev, [prNumber]: 'Failed to generate summary. Is GEMINI_API_KEY set in backend .env?' }));
+    } finally {
+      setLoadingSummary(null);
+    }
+  };
+
   const getStatusColor = (isDraft: boolean) => {
     if (isDraft) return 'bg-gray-500/10 text-gray-500 border-gray-500/20';
     return 'bg-green-500/10 text-green-500 border-green-500/20';
@@ -104,7 +130,7 @@ export default function App() {
             </div>
             <h1 className="font-bold text-lg tracking-tight flex items-center gap-2">
               PR Status <span className="text-neutral-500 font-medium">Explorer</span>
-              <span className="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/20">v1.1</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/20">v1.2</span>
             </h1>
           </div>
           <div className="flex items-center gap-4 text-sm text-neutral-400">
@@ -230,16 +256,25 @@ export default function App() {
 
             <div className="grid gap-3">
               {data.items.map((pr) => (
-                <a
-                  key={pr.number}
-                  href={pr.html_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group relative bg-neutral-900 border border-neutral-800 hover:border-neutral-700 rounded-xl p-4 transition-all hover:shadow-xl hover:shadow-neutral-900/50 hover:-translate-y-0.5"
-                >
-                  <div className="flex items-start justify-between gap-4">
+                <div key={pr.number} className="group relative bg-neutral-900/40 border border-neutral-800 hover:border-blue-500/30 hover:bg-neutral-900/80 rounded-xl p-5 transition-all hover:shadow-xl hover:shadow-neutral-900/50 hover:-translate-y-0.5 overflow-hidden">
+                  <div className="flex items-start gap-4">
+                    {/* Author Avatar */}
+                    <a href={pr.html_url} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                      {pr.author_avatar ? (
+                        <img
+                          src={pr.author_avatar}
+                          alt={pr.author}
+                          className="w-10 h-10 rounded-full border border-neutral-800 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-neutral-800 border border-neutral-700 shrink-0 flex items-center justify-center text-xs font-bold text-neutral-500">
+                          {pr.author.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                    </a>
+
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex items-center gap-2 mb-1">
                         <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider", getStatusColor(pr.is_draft))}>
                           {pr.is_draft ? 'Draft' : 'Open'}
                         </span>
@@ -250,26 +285,60 @@ export default function App() {
                           {new Date(pr.updated_at).toLocaleDateString()}
                         </span>
                       </div>
-                      <h3 className="font-semibold text-neutral-200 group-hover:text-blue-400 transition-colors truncate pr-8">
+
+                      <a href={pr.html_url} target="_blank" rel="noopener noreferrer" className="block font-semibold text-lg text-neutral-200 hover:text-blue-400 transition-colors truncate pr-8 mb-1">
                         {pr.title}
-                      </h3>
-                      <div className="flex items-center gap-2 mt-2 text-xs text-neutral-500">
-                        <span className="font-medium text-neutral-400">@{pr.author}</span>
+                      </a>
+
+                      {/* Body Snippet */}
+                      {pr.body && (
+                        <p className="text-neutral-500 text-sm line-clamp-2 mb-3 leading-relaxed">
+                          {pr.body}
+                        </p>
+                      )}
+
+                      {/* AI Summary Display */}
+                      {summaries[pr.number] && (
+                        <div className="mt-3 p-3 bg-blue-500/5 border border-blue-500/20 rounded-lg text-sm text-neutral-300 animate-in fade-in zoom-in-95">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-1 flex items-center gap-1">
+                            <Bot className="w-3 h-3" /> AI Summary
+                          </h4>
+                          <p className="leading-relaxed whitespace-pre-wrap">{summaries[pr.number]}</p>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between mt-3">
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => fetchSummary(pr.number)}
+                            disabled={loadingSummary === pr.number || !!summaries[pr.number]}
+                            className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors flex items-center gap-1 disabled:opacity-50"
+                          >
+                            {loadingSummary === pr.number ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <span className="flex items-center gap-1"><Bot className="w-3 h-3" /> {summaries[pr.number] ? 'Summarized' : 'Summarize'}</span>
+                            )}
+                          </button>
+                          <span className="text-xs font-medium text-neutral-400 flex items-center gap-1">
+                            Author: <span className="text-neutral-300">@{pr.author}</span>
+                          </span>
+                        </div>
+
                         {pr.labels.length > 0 && (
-                          <div className="flex items-center gap-2 overflow-hidden">
+                          <div className="flex items-center gap-2 overflow-hidden justify-end">
                             {pr.labels.slice(0, 3).map(label => (
-                              <span key={label} className="px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700/50 whitespace-nowrap">
+                              <span key={label} className="px-2 py-0.5 rounded-md bg-neutral-800 text-neutral-300 text-[10px] font-medium border border-neutral-700/50 whitespace-nowrap">
                                 {label}
                               </span>
                             ))}
-                            {pr.labels.length > 3 && <span>+{pr.labels.length - 3}</span>}
+                            {pr.labels.length > 3 && <span className="text-[10px] text-neutral-500">+{pr.labels.length - 3}</span>}
                           </div>
                         )}
                       </div>
                     </div>
-                    <ChevronRight className="w-5 h-5 text-neutral-700 group-hover:text-neutral-500 transition-colors self-center" />
                   </div>
-                </a>
+                </div>
               ))}
             </div>
 
