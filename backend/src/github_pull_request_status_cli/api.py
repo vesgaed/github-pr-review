@@ -34,12 +34,14 @@ class PullRequestResponse(BaseModel):
     number: int = Field(..., description="The pull request number")
     title: str = Field(..., description="The title of the pull request")
     author: str = Field(..., description="The username of the author")
+    author_avatar: str = Field(..., description="Avatar URL of the author")
     html_url: str = Field(..., description="URL to the pull request on GitHub")
     labels: List[str] = Field(default_factory=list, description="List of label names")
     is_draft: bool = Field(..., description="Whether the PR is a draft")
     state: str = Field(..., description="State of the PR (open, closed)")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
+    body: str = Field(..., description="Description of the PR")
 
 class PaginatedResponse(BaseModel):
     items: List[PullRequestResponse] = Field(..., description="List of pull requests")
@@ -103,12 +105,14 @@ async def get_pull_requests(
                 number=pr.pull_request_number,
                 title=pr.title,
                 author=pr.author_login,
+                author_avatar=pr.author_avatar_url,
                 html_url=pr.html_url,
                 labels=list(pr.label_names),
                 is_draft=pr.is_draft,
                 state=pr.state,
                 created_at=pr.created_at,
-                updated_at=pr.updated_at
+                updated_at=pr.updated_at,
+                body=pr.body
             ) for pr in result.pull_requests
         ]
         
