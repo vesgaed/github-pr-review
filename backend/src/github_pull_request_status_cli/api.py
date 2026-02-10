@@ -164,3 +164,65 @@ async def list_user_repos(
     except Exception as e:
         # 401/403 are handled inside client usually, but here generic catch
         raise HTTPException(status_code=500, detail=str(e))
+
+
+class SummaryResponse(BaseModel):
+    summary: str
+
+
+@app.get(
+    "/api/pr/{number}/summary",
+    response_model=SummaryResponse,
+    summary="Summarize Pull Request",
+    description="Generates a clear, natural language summary of a Pull Request using Gemini AI.",
+    tags=["AI"]
+)
+async def summarize_pull_request(
+    number: int,
+    repository: str = Query(..., description="Repository in 'owner/name' format"),
+    token: Optional[str] = Query(None)
+):
+    settings = load_application_settings(require_token=False)
+    github_token = token or settings.github_personal_access_token
+    
+    if not github_token:
+        raise HTTPException(status_code=401, detail="GitHub Token required")
+
+    cache = LocalTimeToLiveCache(default_time_to_live_seconds=settings.cache_time_to_live_seconds)
+    client = GitHubApiClient(github_token=github_token, cache_backend=cache)
+    
+    try:
+        result = await client.list_open_pull_requests(
+            repository_identifier=repository,
+            items_per_page=100  # Try to find it
+        )
+        
+        target_pr = next((pr for pr in result.pull_requests if pr.pull_request_number == number), None)
+        
+        if not target_pr:
+             raise HTTPException(status_code=404, detail="Pull Request not found in open list")
+             
+        # Initialize Gemini Client
+        try:
+            from .llm_client import GeminiClient
+            gemini = GeminiClient(api_key=settings.gemini_api_key, model_name=settings.gemini_model)
+            summary = await gemini.summarize_pr(target_pr.title, target_pr.body)
+            return SummaryResponse(summary=summary)
+        except ValueError as e:
+             raise HTTPException(status_code=503, detail="AI Service Config Error: " + str(e))
+        except Exception as e:
+             return SummaryResponse(summary=f"Could not generate summary: {str(e)}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/api/agent/tools",
+    summary="List Agent Tools (MCP)",
+    description="Exposes available backend features as Model Context Protocol (MCP) compatible tools for AI Agents.",
+    tags=["Agent"]
+)
+async def list_agent_tools():
+    from .mcp_tools import get_mcp_tools
+    return {"tools": get_mcp_tools()}

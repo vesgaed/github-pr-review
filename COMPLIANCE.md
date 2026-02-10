@@ -18,8 +18,8 @@ This document maps the project features against the requirements provided in the
 
 | Enhancement | Implementation Status | Notes |
 | :--- | :---: | :--- |
-| **Agent / MCP Layer** | ❌ Skipped | Focused on core robustness and UI polish. |
-| **LLM Summary** | ❌ Skipped | Not implemented to keep dependencies light. |
+| **Agent / MCP Layer** | ✅ **Done** | Endpoint `/api/agent/tools` exposes tools for AI agents. |
+| **LLM Summary** | ✅ **Done** | Implemented using Google Gemini. |
 | **Automated Tests** | ✅ **Done** | Added `backend/tests/` with `pytest` for API logic. |
 | **UI Polish** | ✅ **Done** | Modern React + Tailwind CSS, Dark Mode, Responsive, Glassmorphism. |
 | **Docker Orchestration** | ✅ **Bonus** | Full `docker-compose` setup for easy "one-command" start. |
