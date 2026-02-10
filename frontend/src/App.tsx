@@ -98,7 +98,10 @@ export default function App() {
             <div className="p-2 bg-neutral-800 rounded-xl">
               <Github className="w-6 h-6 text-white" />
             </div>
-            <h1 className="font-bold text-lg tracking-tight">PR Status <span className="text-neutral-500 font-medium">Explorer</span></h1>
+            <h1 className="font-bold text-lg tracking-tight flex items-center gap-2">
+              PR Status <span className="text-neutral-500 font-medium">Explorer</span>
+              <span className="px-1.5 py-0.5 rounded-md bg-blue-500/10 text-blue-400 text-[10px] font-bold border border-blue-500/20">v1.1</span>
+            </h1>
           </div>
           <div className="flex items-center gap-4 text-sm text-neutral-400">
             <a href="https://github.com/settings/tokens" target="_blank" rel="noreferrer" className="hover:text-white transition-colors flex items-center gap-1">
