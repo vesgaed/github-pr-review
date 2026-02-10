@@ -1,0 +1,166 @@
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from datetime import datetime
+
+from .github_api_client import GitHubApiClient, GitHubAuthenticationError, GitHubRateLimitExceededError, GitHubRepositoryNotFoundError
+from .configuration import load_application_settings
+from .local_cache import LocalTimeToLiveCache
+
+app = FastAPI(
+    title="GitHub Pull Request Explorer API",
+    description="API for fetching and caching GitHub Pull Requests and User Repositories.",
+    version="1.1.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
+
+# Enable CORS for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, specify the frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- Pydantic Models ---
+
+class PullRequestResponse(BaseModel):
+    number: int = Field(..., description="The pull request number")
+    title: str = Field(..., description="The title of the pull request")
+    author: str = Field(..., description="The username of the author")
+    html_url: str = Field(..., description="URL to the pull request on GitHub")
+    labels: List[str] = Field(default_factory=list, description="List of label names")
+    is_draft: bool = Field(..., description="Whether the PR is a draft")
+    state: str = Field(..., description="State of the PR (open, closed)")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+class PaginatedResponse(BaseModel):
+    items: List[PullRequestResponse] = Field(..., description="List of pull requests")
+    pages_fetched: int = Field(..., description="Number of pages fetched from GitHub")
+    from_cache: bool = Field(..., description="Whether the response was served from local cache")
+    repository: str = Field(..., description="The repository identifier (owner/name)")
+
+class RepositorySummary(BaseModel):
+    full_name: str = Field(..., description="Full name of the repository (owner/name)")
+    private: bool = Field(..., description="Whether the repository is private")
+    html_url: str = Field(..., description="URL to the repository")
+    description: Optional[str] = Field(None, description="Repository description")
+    updated_at: Optional[str] = Field(None, description="Last update timestamp")
+
+class ErrorResponse(BaseModel):
+    detail: str
+
+# --- Endpoints ---
+
+@app.get(
+    "/api/pull-requests",
+    response_model=PaginatedResponse,
+    summary="List Open Pull Requests",
+    description="Fetches a list of open pull requests for a given repository. Supports pagination and caching.",
+    tags=["Pull Requests"],
+    responses={
+        401: {"model": ErrorResponse, "description": "Unauthorized (Invalid Token)"},
+        403: {"model": ErrorResponse, "description": "Rate Limit Exceeded"},
+        404: {"model": ErrorResponse, "description": "Repository Not Found"},
+    }
+)
+async def get_pull_requests(
+    repository: str = Query(..., description="Repository in 'owner/name' format", example="vercel/next.js"),
+    token: Optional[str] = Query(None, description="Optional GitHub Token (overrides env var)"),
+    max_pages: Optional[int] = Query(3, ge=1, le=10, description="Maximum number of pages to fetch"),
+    bypass_cache: bool = Query(False, description="If true, forces a fresh fetch from GitHub")
+):
+    try:
+        settings = load_application_settings(require_token=False)
+        # Prefer query param token, fallback to env var
+        github_token = token or settings.github_personal_access_token
+
+        if not github_token:
+             # We allow public access without token, but often it hits rate limits.
+             # ideally we warn.
+             pass
+
+        cache = LocalTimeToLiveCache(default_time_to_live_seconds=settings.cache_time_to_live_seconds)
+        client = GitHubApiClient(github_token=github_token or "", cache_backend=cache)
+
+        result = await client.list_open_pull_requests(
+            repository_identifier=repository,
+            items_per_page=50,
+            maximum_pages_to_fetch=max_pages,
+            bypass_cache=bypass_cache
+        )
+        
+        # Convert dataclasses to Pydantic models
+        items = [
+            PullRequestResponse(
+                number=pr.pull_request_number,
+                title=pr.title,
+                author=pr.author_login,
+                html_url=pr.html_url,
+                labels=list(pr.label_names),
+                is_draft=pr.is_draft,
+                state=pr.state,
+                created_at=pr.created_at,
+                updated_at=pr.updated_at
+            ) for pr in result.pull_requests
+        ]
+        
+        return PaginatedResponse(
+            items=items,
+            pages_fetched=result.pages_fetched,
+            from_cache=result.response_was_from_cache,
+            repository=repository
+        )
+
+    except GitHubAuthenticationError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+    except GitHubRateLimitExceededError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except GitHubRepositoryNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/api/user/repos",
+    response_model=List[RepositorySummary],
+    summary="List User Repositories",
+    description="Lists repositories that the authenticated user has access to (owned, collaborated, etc.). Requires a valid token.",
+    tags=["User"],
+    responses={
+        401: {"model": ErrorResponse, "description": "Unauthorized (Missing or Invalid Token)"},
+    }
+)
+async def list_user_repos(
+    token: Optional[str] = Query(None, description="GitHub Token (required)")
+):
+    # Load settings but allow token override
+    settings = load_application_settings(require_token=False)
+    github_token = token or settings.github_personal_access_token
+
+    if not github_token:
+        raise HTTPException(status_code=401, detail="GitHub Token is required to list user repositories.")
+
+    cache = LocalTimeToLiveCache(default_time_to_live_seconds=settings.cache_time_to_live_seconds)
+    client = GitHubApiClient(github_token=github_token, cache_backend=cache)
+
+    try:
+        # Fetch up to 100 recent repos
+        repos = await client.list_user_repositories(maximum_items=100)
+        return [
+            RepositorySummary(
+                full_name=r["full_name"],
+                private=r["private"],
+                html_url=r["html_url"],
+                description=r.get("description"),
+                updated_at=r.get("updated_at")
+            ) for r in repos
+        ]
+    except Exception as e:
+        # 401/403 are handled inside client usually, but here generic catch
+        raise HTTPException(status_code=500, detail=str(e))
