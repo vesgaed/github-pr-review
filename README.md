@@ -84,15 +84,9 @@ It was built as a response to the "Senior Full-Stack Engineer Take-Home Exercise
     docker-compose up --build
     ```
 
-<<<<<<< HEAD
-3.  **Access the Application**:
-    *   **Frontend**: [http://localhost:3002](http://localhost:3002)
-    *   **Backend API Docs**: [http://localhost:8001/docs](http://localhost:8001/docs)
-=======
 4.  **Access the Application**:
     *   **Frontend**: [http://localhost:3001](http://localhost:3001)
-    *   **Backend API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
->>>>>>> a4607986822072d1e1c6f73a372953246eca7fd7
+    *   **Backend API Docs**: [http://localhost:8001/docs](http://localhost:8001/docs)
 
 ## 🧪 Testing
 
@@ -118,18 +112,6 @@ With more time, I would:
 *   Add **Server-Side Pagination** for the frontend to handle repositories with thousands of PRs (currently fetches 'Max Pages' and paginates in memory/UI).
 *   Add E2E tests using **Playwright**.
 *   Implement a proper CI/CD pipeline (GitHub Actions).
-
-<<<<<<< HEAD
-1.  **Monorepo**: Kept both services in one repo for simplicity and shared context.
-2.  **FastAPI**: Chosen for its speed, type safety, and automatic Swagger docs.
-3.  **Client-Side Fetching**: The frontend proxies requests through the backend to avoid CORS issues with GitHub API directly and to utilize the backend's caching layer.
-4.  **No Database**: Used file-based caching to keep the architecture lightweight and portable without needing Redis/Postgres.
-
-## 📈 Future Improvements
-
--   [ ] Add comprehensive E2E testing (Cypress/Playwright).
--   [ ] Implement persistent storage (SQLite/Postgres) for user preferences.
--   [ ] Add CI/CD GitHub Actions workflow.
 
 ## ✅ Feature Verification Guide
 
@@ -164,7 +146,5 @@ To make it easy for the team to verify the requirements, here is a step-by-step 
     *   *Action*: Run `pytest` inside the backend container.
     *   *Verify*: All tests pass.
 
-=======
 ---
 *Built by [Edves] for the Senior Full-Stack Engineer Take-Home Exercise.*
->>>>>>> a4607986822072d1e1c6f73a372953246eca7fd7
