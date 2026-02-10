@@ -4,7 +4,6 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from .mcp_tools import get_mcp_tools, ToolDefinition
-from .mcp_tools import get_mcp_tools, ToolDefinition
 
 from .github_api_client import GitHubApiClient, GitHubAuthenticationError, GitHubRateLimitExceededError, GitHubRepositoryNotFoundError
 from .configuration import load_application_settings
@@ -173,27 +172,21 @@ async def list_user_repos(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-<<<<<<< HEAD
 class SummaryResponse(BaseModel):
     summary: str
 
 
-=======
 @app.get(
     "/api/agent/tools",
-    response_model=List[ToolDefinition],
-    summary="Get MCP Tools",
-    description="Returns a list of available tools in MCP (Model Context Protocol) format for AI agents.",
+    summary="List Agent Tools (MCP)",
+    description="Exposes available backend features as Model Context Protocol (MCP) compatible tools for AI Agents.",
     tags=["Agent"]
 )
-async def get_agent_tools():
-    return get_mcp_tools()
+async def list_agent_tools():
+    from .mcp_tools import get_mcp_tools
+    return {"tools": get_mcp_tools()}
 
 
-class SummaryResponse(BaseModel):
-    summary: str
-
->>>>>>> a4607986822072d1e1c6f73a372953246eca7fd7
 @app.get(
     "/api/pr/{number}/summary",
     response_model=SummaryResponse,
@@ -216,22 +209,6 @@ async def summarize_pull_request(
     client = GitHubApiClient(github_token=github_token, cache_backend=cache)
     
     try:
-<<<<<<< HEAD
-=======
-        # We need to fetch the specific PR details first. 
-        # Ideally we'd have a get_pull_request method, but we can list and filter or just implement get_pr
-        # For now, let's assume we can fetch it via the list mechanism or add a specific method.
-        # To be efficient and simple, let's just use the existing list method and find it, 
-        # or better, let's add a get_pull_request method to GitHubApiClient if needed.
-        # But wait, GitHub API has GET /repos/{owner}/{repo}/pulls/{pull_number}
-        
-        # Let's quickly add a get_pull_request method to the client to be clean, 
-        # OR just fetch the list and find it (less efficient but uses existing code).
-        # Given the "spectacular" req, let's accept we might need to fetch the single PR.
-        # But I can't edit the client right now easily without context.
-        # Let's use the list_open_pull_requests and filter. It's safe enough for now.
-        
->>>>>>> a4607986822072d1e1c6f73a372953246eca7fd7
         result = await client.list_open_pull_requests(
             repository_identifier=repository,
             items_per_page=100  # Try to find it
@@ -255,17 +232,3 @@ async def summarize_pull_request(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-
-<<<<<<< HEAD
-@app.get(
-    "/api/agent/tools",
-    summary="List Agent Tools (MCP)",
-    description="Exposes available backend features as Model Context Protocol (MCP) compatible tools for AI Agents.",
-    tags=["Agent"]
-)
-async def list_agent_tools():
-    from .mcp_tools import get_mcp_tools
-    return {"tools": get_mcp_tools()}
-=======
->>>>>>> a4607986822072d1e1c6f73a372953246eca7fd7
