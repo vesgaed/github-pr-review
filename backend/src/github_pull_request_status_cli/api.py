@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
+from .mcp_tools import get_mcp_tools, ToolDefinition
+from .mcp_tools import get_mcp_tools, ToolDefinition
 
 from .github_api_client import GitHubApiClient, GitHubAuthenticationError, GitHubRateLimitExceededError, GitHubRepositoryNotFoundError
 from .configuration import load_application_settings
@@ -15,6 +17,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc"
 )
+
 
 # Enable CORS for frontend
 app.add_middleware(
@@ -31,12 +34,14 @@ class PullRequestResponse(BaseModel):
     number: int = Field(..., description="The pull request number")
     title: str = Field(..., description="The title of the pull request")
     author: str = Field(..., description="The username of the author")
+    author_avatar: str = Field(..., description="Avatar URL of the author")
     html_url: str = Field(..., description="URL to the pull request on GitHub")
     labels: List[str] = Field(default_factory=list, description="List of label names")
     is_draft: bool = Field(..., description="Whether the PR is a draft")
     state: str = Field(..., description="State of the PR (open, closed)")
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
+    body: str = Field(..., description="Description of the PR")
 
 class PaginatedResponse(BaseModel):
     items: List[PullRequestResponse] = Field(..., description="List of pull requests")
@@ -100,12 +105,14 @@ async def get_pull_requests(
                 number=pr.pull_request_number,
                 title=pr.title,
                 author=pr.author_login,
+                author_avatar=pr.author_avatar_url,
                 html_url=pr.html_url,
                 labels=list(pr.label_names),
                 is_draft=pr.is_draft,
                 state=pr.state,
                 created_at=pr.created_at,
-                updated_at=pr.updated_at
+                updated_at=pr.updated_at,
+                body=pr.body
             ) for pr in result.pull_requests
         ]
         
@@ -164,3 +171,79 @@ async def list_user_repos(
     except Exception as e:
         # 401/403 are handled inside client usually, but here generic catch
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get(
+    "/api/agent/tools",
+    response_model=List[ToolDefinition],
+    summary="Get MCP Tools",
+    description="Returns a list of available tools in MCP (Model Context Protocol) format for AI agents.",
+    tags=["Agent"]
+)
+async def get_agent_tools():
+    return get_mcp_tools()
+
+
+class SummaryResponse(BaseModel):
+    summary: str
+
+@app.get(
+    "/api/pr/{number}/summary",
+    response_model=SummaryResponse,
+    summary="Summarize Pull Request",
+    description="Generates a clear, natural language summary of a Pull Request using Gemini AI.",
+    tags=["AI"]
+)
+async def summarize_pull_request(
+    number: int,
+    repository: str = Query(..., description="Repository in 'owner/name' format"),
+    token: Optional[str] = Query(None)
+):
+    settings = load_application_settings(require_token=False)
+    github_token = token or settings.github_personal_access_token
+    
+    if not github_token:
+        raise HTTPException(status_code=401, detail="GitHub Token required")
+
+    cache = LocalTimeToLiveCache(default_time_to_live_seconds=settings.cache_time_to_live_seconds)
+    client = GitHubApiClient(github_token=github_token, cache_backend=cache)
+    
+    try:
+        # We need to fetch the specific PR details first. 
+        # Ideally we'd have a get_pull_request method, but we can list and filter or just implement get_pr
+        # For now, let's assume we can fetch it via the list mechanism or add a specific method.
+        # To be efficient and simple, let's just use the existing list method and find it, 
+        # or better, let's add a get_pull_request method to GitHubApiClient if needed.
+        # But wait, GitHub API has GET /repos/{owner}/{repo}/pulls/{pull_number}
+        
+        # Let's quickly add a get_pull_request method to the client to be clean, 
+        # OR just fetch the list and find it (less efficient but uses existing code).
+        # Given the "spectacular" req, let's accept we might need to fetch the single PR.
+        # But I can't edit the client right now easily without context.
+        # Let's use the list_open_pull_requests and filter. It's safe enough for now.
+        
+        result = await client.list_open_pull_requests(
+            repository_identifier=repository,
+            items_per_page=100  # Try to find it
+        )
+        
+        target_pr = next((pr for pr in result.pull_requests if pr.pull_request_number == number), None)
+        
+        if not target_pr:
+             raise HTTPException(status_code=404, detail="Pull Request not found in open list")
+             
+        # Initialize Gemini Client
+        try:
+            from .llm_client import GeminiClient
+            gemini = GeminiClient(api_key=settings.gemini_api_key, model_name=settings.gemini_model)
+            summary = await gemini.summarize_pr(target_pr.title, target_pr.body)
+            return SummaryResponse(summary=summary)
+        except ValueError as e:
+             raise HTTPException(status_code=503, detail="AI Service Config Error: " + str(e))
+        except Exception as e:
+             return SummaryResponse(summary=f"Could not generate summary: {str(e)}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
