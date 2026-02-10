@@ -15,8 +15,9 @@ This project is a submission for the Senior Full-Stack Engineer Take-Home Exerci
 -   **Smart Caching**: Local file-based cache to prevent rate-limiting (TTL: 90s).
 -   **User Repositories**: Authenticated users can see their own repositories instantly.
 -   **Stats Dashboard**: Visualizations for PR labels and top contributors.
--   **Agent API**: MCP-compatible endpoint at `/api/agent/tools` for AI integration.
--   **Modern UI**: Dark mode, glassmorphism, and responsive design.
+-   **AI Summaries**: Natural language summaries of Pull Requests powered by Google Gemini.
+-   **Agent API**: MCP-compatible endpoint at `/api/agent/tools`.
+-   **Modern UI**: Dark mode, glassmorphism, avatars, and rich details.
 -   **Dockerized**: One command to run everything.
 -   **Swagger API Docs**: Fully documented API at `/docs`.
 
